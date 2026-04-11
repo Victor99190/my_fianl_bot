@@ -1,23 +1,46 @@
-name: News Automation
+name: News Automation Bot
+
 on:
   schedule:
-    # This triggers the "robot" every 15 minutes
-    - cron: '*/15 * * * *'
+    # Runs every 5 minutes (Fastest allowed by GitHub)
+    - cron: '*/5 * * * *'
+      # New 2026 feature: Native Nepal Timezone support
+      timezone: "Asia/Kathmandu"
+  
+  # Runs the bot immediately every time you push code to GitHub
+  push:
+    branches:
+      - main
+  
+  # Adds a "Run workflow" button in the Actions tab for manual testing
   workflow_dispatch: 
-    # This still allows you to trigger it manually whenever you want
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    
+    # Prevents multiple runs from overlapping if one takes longer than 5 mins
+    concurrency:
+      group: news-bot-sync
+      cancel-in-progress: true
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: npm install
-      - name: Execute
+          node-version: 24 # Using the latest stable Node version for 2026
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Execute News Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          # Forces the runner to use Node 24 for all internal actions
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
         run: node auto_post.js
