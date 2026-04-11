@@ -2,45 +2,59 @@ name: News Automation Bot
 
 on:
   schedule:
-    # Runs every 5 minutes (Fastest allowed by GitHub)
+    # Runs every 5 minutes - Nepal timezone
     - cron: '*/5 * * * *'
-      # New 2026 feature: Native Nepal Timezone support
       timezone: "Asia/Kathmandu"
   
-  # Runs the bot immediately every time you push code to GitHub
-  push:
-    branches:
-      - main
-  
-  # Adds a "Run workflow" button in the Actions tab for manual testing
+  # Manual trigger - useful for testing
   workflow_dispatch: 
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
-    # Prevents multiple runs from overlapping if one takes longer than 5 mins
+    # Prevents overlapping runs
     concurrency:
       group: news-bot-sync
       cancel-in-progress: true
-
+    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 24
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24 # Using the latest stable Node version for 2026
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
+        # Uses package-lock.json if available for reproducible builds
+
+      - name: Validate Credentials
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+        run: |
+          echo "✓ Checking environment variables..."
+          if [ -z "$GEMINI_API_KEY" ]; then echo "ERROR: GEMINI_API_KEY not set"; exit 1; fi
+          if [ -z "$FB_PAGE_TOKEN" ]; then echo "ERROR: FB_PAGE_TOKEN not set"; exit 1; fi
+          if [ -z "$FB_PAGE_ID" ]; then echo "ERROR: FB_PAGE_ID not set"; exit 1; fi
+          echo "✓ All credentials present"
 
       - name: Execute News Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          # Forces the runner to use Node 24 for all internal actions
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
         run: node auto_post.js
+
+      - name: Upload Logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-logs
+          path: bot.log
+          retention-days: 7
