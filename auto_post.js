@@ -1,48 +1,57 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 async function startBot() {
-  console.log("🚀 SCRIPT STARTING...");
-
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  const FB_PAGE_TOKEN = process.env.FB_PAGE_TOKEN;
-  const FB_PAGE_ID = process.env.FB_PAGE_ID;
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-2.5-flash",
+    tools: [{ url_context: {} }] 
+  });
 
   const NEWS_SOURCES = [
-    "https://kathmandupost.com/national",
-    "https://thehimalayantimes.com/nepal"
+    "https://www.onlinekhabar.com",
+    "https://ekantipur.com",
+    "https://www.setopati.com",
+    "https://www.nepalpress.com",
+    "https://www.ratopati.com"
   ];
 
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  
-  // UPDATED MODEL NAME FOR 2026
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const source = NEWS_SOURCES[Math.floor(Math.random() * NEWS_SOURCES.length)];
 
-  for (const url of NEWS_SOURCES) {
-    try {
-      console.log(`📰 Reading News: ${url}`);
-      
-      const prompt = `तपाईं एक अनुभवी नेपाली पत्रकार हो। यो लिंक (${url}) बाट मुख्य समाचार छनोट गरी २ वाक्यमा व्यवसायीक नेपाली युनिकोड (Unicode) मा फेसबुक पोस्ट लेख्नुहोस्। पोस्टमा २ वटा इमोजी र लिंक समावेश गर्नुहोस्।`;
-      
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      
-      console.log("🤖 Summary generated. Posting to Facebook...");
+  const prompt = `
+    Context: You are a professional Nepali news editor. Today is April 11, 2026.
+    Task: Visit ${source} and find the most IMPORTANT news.
+    
+    RULES:
+    1. Only post if it is major news (Politics, National, Breaking). 
+    2. If it is minor, gossip, or an ad, output "SKIP".
+    3. Do NOT include any introductory or concluding text. Just the news.
+    4. Format exactly like this:
+       🚨 [Catchy Headline in Bold Nepali]
+       
+       [Professional 2-sentence summary in Nepali Unicode]
+       
+       स्रोत: https://www.cnn.com/
+       #NepalNews #[RelevantTopic]
+  `;
 
-      const res = await fetch(`https://graph.facebook.com/v20.0/${FB_PAGE_ID}/feed`, {
+  try {
+    console.log(`📡 Checking ${source}...`);
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+
+    if (text !== "SKIP" && text.length > 20) {
+      await fetch(`https://graph.facebook.com/v20.0/${process.env.FB_PAGE_ID}/feed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, access_token: FB_PAGE_TOKEN })
+        body: JSON.stringify({ message: text, access_token: process.env.FB_PAGE_TOKEN })
       });
-      
-      const data = await res.json();
-      console.log("📡 Facebook Response:", JSON.stringify(data));
-    } catch (e) {
-      console.error("❌ ERROR inside loop:", e.message);
+      console.log("✅ Posted successfully!");
+    } else {
+      console.log("⏭️ Filtered: News was too minor to post.");
     }
+  } catch (e) {
+    console.error("❌ System Error:", e.message);
   }
 }
 
-(async () => {
-    await startBot();
-    console.log("🏁 SCRIPT FINISHED.");
-})();
+(async () => { await startBot(); })();
