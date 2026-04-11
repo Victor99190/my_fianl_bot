@@ -1,40 +1,42 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const FB_PAGE_TOKEN = process.env.FB_PAGE_TOKEN;
-const FB_PAGE_ID = process.env.FB_PAGE_ID;
-
-// ADD YOUR NEWS LINKS HERE
-const NEWS_SOURCES = [
-  "https://kathmandupost.com/national",
-  "https://thehimalayantimes.com/nepal"
-];
-
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
 async function postToFacebook() {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  // Use "gemini-1.5-flash-latest" to avoid 404 errors
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
   for (const url of NEWS_SOURCES) {
     try {
       console.log(`Processing: ${url}`);
-      const prompt = `Visit ${url}. Find the top headline. Write a short, engaging Facebook post about it with emojis and 2 hashtags. Include the link.`;
+      
+      // I've added a instruction to ensure it doesn't just return an empty string
+      const prompt = `Task: Visit ${url} and summarize the top news. 
+      Write a catchy Facebook post with 2 emojis and the link. 
+      Keep it under 50 words. Do not include introductory text.`;
       
       const result = await model.generateContent(prompt);
-      const message = result.response.text();
+      const response = await result.response;
+      const message = response.text();
+
+      if (!message) {
+        console.log("Gemini returned an empty message. Skipping...");
+        continue;
+      }
 
       const res = await fetch(`https://graph.facebook.com/v20.0/${FB_PAGE_ID}/feed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, access_token: FB_PAGE_TOKEN })
+        body: JSON.stringify({ 
+          message: message, 
+          access_token: FB_PAGE_TOKEN 
+        })
       });
       
       const data = await res.json();
-      console.log(data.id ? `✅ Posted news from ${url}` : `❌ Error: ${data.error.message}`);
+      if (data.id) {
+        console.log(`✅ Posted successfully! ID: ${data.id}`);
+      } else {
+        console.log(`❌ Facebook Error: ${data.error.message}`);
+      }
     } catch (e) {
       console.error(`Failed ${url}:`, e.message);
     }
   }
 }
-
-postToFacebook();
