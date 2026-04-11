@@ -1,5 +1,32 @@
 {
+  "name": "nepal-news-bot",
+  "version": "1.0.0",
+  "description": "Automated Nepali news poster using Gemini AI and Facebook Graph API",
+  "main": "auto_post.js",
+  "scripts": {
+    "start": "node auto_post.js",
+    "test": "node auto_post.js",
+    "dev": "dotenv -e .env node auto_post.js",
+    "test:token": "node -e \"console.log('Token length:', process.env.FB_PAGE_TOKEN?.length || 'NOT SET'); console.log('Page ID:', process.env.FB_PAGE_ID || 'NOT SET');\""
+  },
   "dependencies": {
     "@google/generative-ai": "^0.21.0"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "dotenv-cli": "^7.4.2"
+  },
+  "keywords": [
+    "facebook",
+    "graph-api",
+    "gemini",
+    "news",
+    "nepal",
+    "automation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
