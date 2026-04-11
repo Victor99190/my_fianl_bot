@@ -1,0 +1,28 @@
+# Environment variables - NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+package-lock.json
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bot output
+bot.log
+output.txt
