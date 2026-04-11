@@ -2,9 +2,13 @@ name: News Automation Bot
 
 on:
   schedule:
-    # Runs every 5 minutes - Nepal timezone
+    # Runs every 25 minutes
     - cron: '*/25 * * * *'
       timezone: "Asia/Kathmandu"
+  
+  # Added this to allow solmali.com to trigger the bot
+  repository_dispatch:
+    types: [trigger-news-bot]
   
   # Manual trigger - useful for testing
   workflow_dispatch: 
@@ -29,8 +33,6 @@ jobs:
 
       - name: Install Dependencies
         run: npm install --production
-        # Installs only production dependencies
-        # @google/generative-ai is the only one needed for the bot
 
       - name: Validate Credentials
         env:
