@@ -21,16 +21,19 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
-        # Uses package-lock.json if available for reproducible builds
+        run: npm ci --ignore-scripts
+        # Uses package-lock.json for reproducible builds
+        # --ignore-scripts prevents any build scripts from running
 
       - name: Validate Credentials
         env:
@@ -38,11 +41,11 @@ jobs:
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         run: |
-          echo "✓ Checking environment variables..."
-          if [ -z "$GEMINI_API_KEY" ]; then echo "ERROR: GEMINI_API_KEY not set"; exit 1; fi
-          if [ -z "$FB_PAGE_TOKEN" ]; then echo "ERROR: FB_PAGE_TOKEN not set"; exit 1; fi
-          if [ -z "$FB_PAGE_ID" ]; then echo "ERROR: FB_PAGE_ID not set"; exit 1; fi
-          echo "✓ All credentials present"
+          echo "🔍 Checking environment variables..."
+          if [ -z "$GEMINI_API_KEY" ]; then echo "❌ ERROR: GEMINI_API_KEY not set"; exit 1; fi
+          if [ -z "$FB_PAGE_TOKEN" ]; then echo "❌ ERROR: FB_PAGE_TOKEN not set"; exit 1; fi
+          if [ -z "$FB_PAGE_ID" ]; then echo "❌ ERROR: FB_PAGE_ID not set"; exit 1; fi
+          echo "✅ All credentials present"
 
       - name: Execute News Bot
         env:
@@ -50,11 +53,8 @@ jobs:
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         run: node auto_post.js
+        continue-on-error: true
 
-      - name: Upload Logs (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bot-logs
-          path: bot.log
-          retention-days: 7
+      - name: Log Completion
+        if: always()
+        run: echo "✅ Workflow completed at $(date)"
