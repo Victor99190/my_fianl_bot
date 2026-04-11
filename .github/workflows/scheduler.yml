@@ -1,0 +1,23 @@
+name: News Automation
+on:
+  schedule:
+    # This triggers the "robot" every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch: 
+    # This still allows you to trigger it manually whenever you want
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Execute
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+        run: node auto_post.js
