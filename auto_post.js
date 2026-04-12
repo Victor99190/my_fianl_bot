@@ -1,4 +1,6 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios = require("axios");
+const fs = require("fs").promises;
 
 async function startBot() {
   // ============ VALIDATION ============
