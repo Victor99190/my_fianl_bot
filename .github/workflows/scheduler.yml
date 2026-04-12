@@ -2,59 +2,51 @@ name: News Automation Bot
 
 on:
   schedule:
-    # Runs every 25 minutes
     - cron: '*/25 * * * *'
       timezone: "Asia/Kathmandu"
-  
-  # Added this to allow solmali.com to trigger the bot
   repository_dispatch:
     types: [trigger-news-bot]
-  
-  # Manual trigger - useful for testing
-  workflow_dispatch: 
+  workflow_dispatch: {}
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    
-    # Prevents overlapping runs
     concurrency:
       group: news-bot-sync
       cancel-in-progress: true
-    
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 24
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: npm install --production
 
-      - name: Validate Credentials
+      - name: Validate secrets
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         run: |
-          echo "🔍 Checking credentials..."
-          if [ -z "$GEMINI_API_KEY" ]; then echo "❌ GEMINI_API_KEY not set"; exit 1; fi
-          if [ -z "$FB_PAGE_TOKEN" ]; then echo "❌ FB_PAGE_TOKEN not set"; exit 1; fi
-          if [ -z "$FB_PAGE_ID" ]; then echo "❌ FB_PAGE_ID not set"; exit 1; fi
-          echo "✅ All credentials present"
+          echo "Checking required secrets..."
+          if [ -z "$GEMINI_API_KEY" ]; then echo "Missing GEMINI_API_KEY"; exit 1; fi
+          if [ -z "$FB_PAGE_TOKEN" ]; then echo "Missing FB_PAGE_TOKEN"; exit 1; fi
+          if [ -z "$FB_PAGE_ID" ]; then echo "Missing FB_PAGE_ID"; exit 1; fi
 
-      - name: Execute News Bot
+      - name: Run validation script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+        run: node validate.js
+
+      - name: Run news bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         run: node auto_post.js
-
-      - name: Completion Log
-        if: always()
-        run: |
-          echo "✅ Bot execution completed"
-          date

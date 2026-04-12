@@ -23,6 +23,7 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Bot output
+# Bot output and runtime cache
 bot.log
 output.txt
+posted_urls.json
