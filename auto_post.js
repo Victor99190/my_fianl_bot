@@ -58,72 +58,134 @@ Example format (do NOT use this exact text):
 
   try {
     console.log(`\n🔄 Starting bot at ${new Date().toISOString()}`);
-    console.log(`📡 Fetching news from: ${source}`);
-
-    // Call Gemini API
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-
-    console.log(`\n📝 Gemini Response:\n${text}\n`);
-
-    // Check if we should skip this
-    if (text === "SKIP" || text.length < 20) {
-      console.log("⏭️ Skipped: News was too minor or Gemini returned SKIP");
-      return;
+    
+    // Load posted URLs
+    let postedUrls = [];
+    try {
+      const data = await fs.readFile("posted_urls.json", "utf8");
+      postedUrls = JSON.parse(data);
+    } catch (err) {
+      console.log("📄 No posted URLs file found, starting fresh");
     }
 
-    // ============ POST TO FACEBOOK ============
-    console.log(`\n📤 Posting to Facebook Page ID: ${process.env.FB_PAGE_ID}`);
-    
-    const fbUrl = `https://graph.facebook.com/v20.0/${process.env.FB_PAGE_ID}/feed`;
-    const payload = {
-      message: text,
-      access_token: process.env.FB_PAGE_TOKEN
-    };
+    // Fetch scraped news from GitHub
+    console.log(`📡 Fetching scraped news from final-scrapeer repo...`);
+    const repoApi = "https://api.github.com/repos/Victor99190/final-scrapeer/contents/data";
+    const { data: sites } = await axios.get(repoApi);
 
-    console.log(`📍 API Endpoint: ${fbUrl}`);
-    console.log(`📦 Payload size: ${JSON.stringify(payload).length} bytes`);
+    let allArticles = [];
 
-    const response = await fetch(fbUrl, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'User-Agent': 'NewsBot/1.0'
-      },
-      body: JSON.stringify(payload)
+    for (const site of sites) {
+      if (site.type !== "dir") continue;
+      console.log(`📂 Processing site: ${site.name}`);
+      
+      const { data: dates } = await axios.get(site.url);
+      const latestDate = dates
+        .filter(d => d.type === "dir")
+        .sort((a, b) => b.name.localeCompare(a.name))[0]; // Latest date
+      
+      if (!latestDate) continue;
+      
+      const { data: files } = await axios.get(latestDate.url);
+      for (const file of files) {
+        if (!file.name.endsWith(".json")) continue;
+        
+        const { data: content } = await axios.get(file.download_url);
+        const article = content; // axios parses JSON automatically
+        
+        if (!postedUrls.includes(article.url)) {
+          allArticles.push({
+            ...article,
+            site: site.name,
+            priority: article.content.length > 1000 ? 2 : 1 // Longer content = higher priority
+          });
+        }
+      }
+    }
+
+    // Sort by priority and date
+    allArticles.sort((a, b) => {
+      if (a.priority !== b.priority) return b.priority - a.priority;
+      return new Date(b.scraped_at) - new Date(a.scraped_at);
     });
 
-    const responseData = await response.json();
+    console.log(`📊 Found ${allArticles.length} new articles`);
 
-    // ============ HANDLE FACEBOOK RESPONSE ============
-    if (!response.ok) {
-      console.error(`\n❌ Facebook API Error (${response.status}):`);
-      console.error(JSON.stringify(responseData, null, 2));
-      
-      if (responseData.error?.message) {
-        console.error(`Error Message: ${responseData.error.message}`);
+    // Process up to 5 articles
+    const toPost = allArticles.slice(0, 5);
+    let postedCount = 0;
+
+    for (const article of toPost) {
+      try {
+        console.log(`\n📰 Processing: ${article.title.substring(0, 50)}...`);
+        
+        // Summarize with Gemini
+        const prompt = `
+You are a friendly Nepali news enthusiast sharing important updates.
+
+ARTICLE TITLE: ${article.title}
+ARTICLE CONTENT: ${article.content.substring(0, 2000)}...
+
+Create a human-like Facebook post in Nepali and English:
+- Start with 🚨 and bold title
+- 2-3 engaging sentences
+- Mix Nepali and English naturally
+- Add relevant emoji
+- End with source and hashtags
+- Keep under 300 characters
+- Sound conversational, like a real person sharing news
+
+Example:
+🚨 **Big news from Nepal!**
+
+नेपालमा नयाँ कानुन आएको छ। This new law will help farmers a lot! 🌾
+
+स्रोत: ${article.site}
+#NepalNews #Important
+`;
+
+        const result = await model.generateContent(prompt);
+        const summary = result.response.text().trim();
+
+        console.log(`📝 Summary:\n${summary}\n`);
+
+        if (summary === "SKIP" || summary.length < 20) {
+          console.log("⏭️ Skipped: Summary too short");
+          continue;
+        }
+
+        // Post to Facebook
+        console.log(`📤 Posting to Facebook...`);
+        
+        const fbUrl = `https://graph.facebook.com/v20.0/${process.env.FB_PAGE_ID}/feed`;
+        const payload = {
+          message: summary,
+          access_token: process.env.FB_PAGE_TOKEN
+        };
+
+        const response = await axios.post(fbUrl, payload);
+        const responseData = response.data;
+
+        if (responseData.id) {
+          console.log(`✅ Posted! ID: ${responseData.id}`);
+          postedUrls.push(article.url);
+          postedCount++;
+          
+          // Save posted URLs
+          await fs.writeFile("posted_urls.json", JSON.stringify(postedUrls, null, 2));
+        } else {
+          console.warn(`⚠️ No post ID returned`);
+        }
+
+        // Rate limit: 1 post per 10 seconds
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+      } catch (error) {
+        console.error(`❌ Error processing article: ${error.message}`);
       }
-      
-      if (responseData.error?.code === 190) {
-        console.error("💡 Token expired or invalid. Check FB_PAGE_TOKEN secret.");
-      }
-      if (responseData.error?.code === 104) {
-        console.error("💡 Token does not have proper permissions. Ensure token has:");
-        console.error("   - pages_manage_posts");
-        console.error("   - pages_read_user_context");
-      }
-      process.exit(1);
     }
 
-    // Success!
-    if (responseData.id) {
-      console.log(`\n✅ Posted successfully!`);
-      console.log(`📌 Post ID: ${responseData.id}`);
-      console.log(`🔗 View post: https://www.facebook.com/${responseData.id}`);
-      return responseData.id;
-    } else {
-      console.warn(`⚠️ No post ID returned. Response:`, responseData);
-    }
+    console.log(`\n🎉 Bot finished! Posted ${postedCount} articles.`);
 
   } catch (error) {
     console.error(`\n❌ System Error: ${error.message}`);
