@@ -19,6 +19,59 @@ async function startBot() {
     model: "gemini-3.1-flash-lite-preview"
   });
 
+  // ============ POSTED HISTORY - NEW ============
+  
+  async function loadPostedHistory() {
+    try {
+      const historyPath = path.join(process.cwd(), "posted_history.json");
+      const data = await fs.readFile(historyPath, "utf8");
+      return JSON.parse(data);
+    } catch (err) {
+      console.log(`📝 Creating new posted_history.json`);
+      return {
+        urls: [],
+        titles: [],
+        lastUpdated: new Date().toISOString(),
+        totalPosted: 0
+      };
+    }
+  }
+
+  async function savePostedHistory(history) {
+    try {
+      const historyPath = path.join(process.cwd(), "posted_history.json");
+      await fs.writeFile(historyPath, JSON.stringify(history, null, 2));
+      console.log(`✅ Posted history saved (${history.urls.length} URLs tracked)`);
+    } catch (err) {
+      console.error(`❌ Error saving posted_history.json: ${err.message}`);
+    }
+  }
+
+  function isUrlAlreadyPosted(history, articleUrl) {
+    return history.urls.includes(articleUrl);
+  }
+
+  function isTitleAlreadyPosted(history, articleTitle) {
+    const titleHash = generateTitleHash(articleTitle);
+    return history.titles.includes(titleHash);
+  }
+
+  async function addToPostedHistory(history, article) {
+    const titleHash = generateTitleHash(article.title);
+    
+    if (!history.urls.includes(article.url)) {
+      history.urls.push(article.url);
+    }
+    if (!history.titles.includes(titleHash)) {
+      history.titles.push(titleHash);
+    }
+    
+    history.totalPosted += 1;
+    history.lastUpdated = new Date().toISOString();
+    
+    await savePostedHistory(history);
+  }
+
   // ============ HELPER FUNCTIONS ============
   
   function generateContentHash(title, content) {
@@ -353,6 +406,10 @@ Be strict: only EXACT_DUPLICATE if reporting the SAME event with SAME facts.`;
     console.log(`${"=".repeat(70)}`);
     console.log(`⏰ Started at: ${new Date().toISOString()}\n`);
 
+    // Load posted history - NEW
+    const postedHistory = await loadPostedHistory();
+    console.log(`\n📝 Loaded posted history: ${postedHistory.urls.length} URLs already posted`);
+
     // Fetch Facebook posts
     let facebookPosts = [];
     try {
@@ -394,6 +451,20 @@ Be strict: only EXACT_DUPLICATE if reporting the SAME event with SAME facts.`;
             const article = content;
             
             console.log(`\n   📰 "${article.title.substring(0, 70)}..."`);
+            
+            // ====== NEW: Check against posted history ======
+            if (isUrlAlreadyPosted(postedHistory, article.url)) {
+              console.log(`   ⏭️ SKIPPING - Already posted (URL in history)`);
+              skippedDuplicates++;
+              continue;
+            }
+
+            if (isTitleAlreadyPosted(postedHistory, article.title)) {
+              console.log(`   ⏭️ SKIPPING - Already posted (Title in history)`);
+              skippedDuplicates++;
+              continue;
+            }
+            // ====== END NEW ======
             
             // Analyze relationship to existing posts
             const analysis = await analyzeArticleRelationship(article, facebookPosts);
@@ -555,7 +626,10 @@ FORMAT:
       console.log(`\n✅ SUCCESS! Post ID: ${response.data.id}`);
       console.log(`✅ URL: https://facebook.com/${response.data.id}`);
       
+      // ====== NEW: Add to both logs ======
       await addToPostLog(article, response.data.id, facebookPost, article.articleType || "NEW_STORY");
+      await addToPostedHistory(postedHistory, article);
+      // ====== END NEW ======
     } else {
       console.error(`❌ Failed to post`);
       throw new Error("No post ID returned");
