@@ -17,7 +17,7 @@ async function startBot() {
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-3.1-flash-lite-preview"
+    model: "gemini-1.5-flash"
   });
 
   // ============ POSTED HISTORY - NEW ============
@@ -599,7 +599,21 @@ FORMAT:
 
 #NepalNews #tag1 #tag2`;
 
-    const contentResult = await model.generateContent(detailPrompt);
+    let contentResult;
+    let retries = 3;
+    for (let i = 0; i < retries; i++) {
+      try {
+        contentResult = await model.generateContent(detailPrompt);
+        break;
+      } catch (error) {
+        console.log(`API error (attempt ${i+1}/${retries}): ${error.message}`);
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        } else {
+          throw error;
+        }
+      }
+    }
     let facebookPost = contentResult.response.text().trim();
 
     console.log(`\n📝 Generated Post:`);
