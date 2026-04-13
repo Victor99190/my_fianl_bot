@@ -26,4 +26,3 @@ Thumbs.db
 # Bot output and runtime cache
 bot.log
 output.txt
-posted_urls.json

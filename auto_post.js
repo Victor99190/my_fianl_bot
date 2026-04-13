@@ -1,6 +1,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const axios = require("axios");
 const fs = require("fs").promises;
+const { execSync } = require('child_process');
 
 async function startBot() {
   // ============ VALIDATION ============
@@ -172,9 +173,6 @@ Example:
           console.log(`✅ Posted! ID: ${responseData.id}`);
           postedUrls.push(article.url);
           postedCount++;
-          
-          // Save posted URLs
-          await fs.writeFile("posted_urls.json", JSON.stringify(postedUrls, null, 2));
         } else {
           console.warn(`⚠️ No post ID returned`);
         }
@@ -185,6 +183,21 @@ Example:
       } catch (error) {
         console.error(`❌ Error processing article: ${error.message}`);
       }
+    }
+
+    // Save posted URLs
+    await fs.writeFile("posted_urls.json", JSON.stringify(postedUrls, null, 2));
+
+    // Commit and push changes
+    try {
+      execSync('git config --global user.name "GitHub Actions Bot"');
+      execSync('git config --global user.email "bot@github.com"');
+      execSync('git add posted_urls.json');
+      execSync('git commit -m "Update posted URLs after posting ' + postedCount + ' articles" || echo "No changes"');
+      execSync('git push');
+      console.log('✅ Committed and pushed updated posted URLs');
+    } catch (error) {
+      console.error('❌ Failed to commit changes:', error.message);
     }
 
     console.log(`\n🎉 Bot finished! Posted ${postedCount} articles.`);
