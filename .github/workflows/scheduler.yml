@@ -21,6 +21,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Clone scraper repository
+        run: git clone https://github.com/Victor99190/final-scrapeer.git scraper_repo
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

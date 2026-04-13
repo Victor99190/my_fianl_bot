@@ -419,37 +419,41 @@ Be strict: only EXACT_DUPLICATE if reporting the SAME event with SAME facts.`;
       console.warn(`⚠️ Warning: Could not fetch Facebook posts`);
     }
 
-    // Fetch news
-    console.log(`\n📡 Fetching news from scraper...`);
-    const repoApi = "https://api.github.com/repos/Victor99190/final-scrapeer/contents/data";
-    const { data: sites } = await axios.get(repoApi);
+    // Fetch news from local scraper repo
+    console.log(`\n📡 Reading news from local scraper repo...`);
+    const dataDir = './scraper_repo/data';
+    const sites = await fs.readdir(dataDir);
 
     let allArticles = [];
     let skippedDuplicates = 0;
 
-    for (const site of sites) {
-      if (site.type !== "dir") continue;
+    for (const siteName of sites) {
+      const sitePath = `${dataDir}/${siteName}`;
+      const stat = await fs.stat(sitePath);
+      if (!stat.isDirectory()) continue;
       
       console.log(`\n${"=".repeat(70)}`);
-      console.log(`📂 Processing: ${site.name}`);
+      console.log(`📂 Processing: ${siteName}`);
       console.log(`${"=".repeat(70)}`);
       
       try {
-        const { data: dates } = await axios.get(site.url);
+        const dates = await fs.readdir(sitePath);
         const latestDate = dates
-          .filter(d => d.type === "dir")
-          .sort((a, b) => b.name.localeCompare(a.name))[0];
+          .filter(d => !d.startsWith('.'))
+          .sort((a, b) => b.localeCompare(a))[0];
         
         if (!latestDate) continue;
         
-        const { data: files } = await axios.get(latestDate.url);
+        const datePath = `${sitePath}/${latestDate}`;
+        const files = await fs.readdir(datePath);
         
-        for (const file of files) {
-          if (!file.name.endsWith(".json")) continue;
+        for (const fileName of files) {
+          if (!fileName.endsWith('.json')) continue;
           
           try {
-            const { data: content } = await axios.get(file.download_url);
-            const article = content;
+            const filePath = `${datePath}/${fileName}`;
+            const content = await fs.readFile(filePath, 'utf8');
+            const article = JSON.parse(content);
             
             console.log(`\n   📰 "${article.title.substring(0, 70)}..."`);
             
@@ -486,7 +490,7 @@ Be strict: only EXACT_DUPLICATE if reporting the SAME event with SAME facts.`;
             
             allArticles.push({
               ...article,
-              site: site.name,
+              site: siteName,
               priority: article.content.length > 1500 ? 3 : article.content.length > 800 ? 2 : 1,
               articleType: analysis.type
             });
