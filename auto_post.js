@@ -1,6 +1,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const axios = require("axios");
 const fs = require("fs").promises;
+const crypto = require("crypto");
 
 async function startBot() {
   // ============ VALIDATION ============
@@ -26,17 +27,62 @@ async function startBot() {
     "https://www.ratopati.com"
   ];
 
+  // ============ HELPER FUNCTIONS ============
+  
+  // Generate content hash to detect duplicates even from different sources
+  function generateContentHash(title, content) {
+    const normalized = `${title}${content.substring(0, 500)}`.toLowerCase().trim();
+    return crypto.createHash('md5').update(normalized).digest('hex');
+  }
+
+  // Load tracking data
+  async function loadTracking() {
+    try {
+      const data = await fs.readFile("news_tracking.json", "utf8");
+      return JSON.parse(data);
+    } catch (err) {
+      return {
+        posted_urls: [],
+        posted_hashes: [],
+        posted_at: [],
+        last_run: null,
+        total_posted: 0
+      };
+    }
+  }
+
+  // Save tracking data
+  async function saveTracking(tracking) {
+    await fs.writeFile("news_tracking.json", JSON.stringify(tracking, null, 2));
+  }
+
+  // Check if article is already posted (by URL or content hash)
+  function isAlreadyPosted(article, tracking) {
+    const contentHash = generateContentHash(article.title, article.content);
+    
+    return {
+      byUrl: tracking.posted_urls.includes(article.url),
+      byHash: tracking.posted_hashes.includes(contentHash),
+      contentHash
+    };
+  }
+
+  // Extract domain from URL
+  function getDomain(url) {
+    try {
+      const domain = new URL(url).hostname.replace('www.', '');
+      return domain;
+    } catch {
+      return 'unknown';
+    }
+  }
+
   try {
     console.log(`\n🔄 Starting bot at ${new Date().toISOString()}`);
     
-    // Load posted URLs
-    let postedUrls = [];
-    try {
-      const data = await fs.readFile("posted_urls.json", "utf8");
-      postedUrls = JSON.parse(data);
-    } catch (err) {
-      console.log("📄 No posted URLs file found, starting fresh");
-    }
+    // Load tracking data
+    const tracking = await loadTracking();
+    console.log(`📊 Previously posted: ${tracking.total_posted} articles`);
 
     // Fetch scraped news from GitHub
     console.log(`📡 Fetching scraped news from final-scrapeer repo...`);
@@ -49,131 +95,179 @@ async function startBot() {
       if (site.type !== "dir") continue;
       console.log(`📂 Processing site: ${site.name}`);
       
-      const { data: dates } = await axios.get(site.url);
-      const latestDate = dates
-        .filter(d => d.type === "dir")
-        .sort((a, b) => b.name.localeCompare(a.name))[0]; // Latest date
-      
-      if (!latestDate) continue;
-      
-      const { data: files } = await axios.get(latestDate.url);
-      for (const file of files) {
-        if (!file.name.endsWith(".json")) continue;
+      try {
+        const { data: dates } = await axios.get(site.url);
+        const latestDate = dates
+          .filter(d => d.type === "dir")
+          .sort((a, b) => b.name.localeCompare(a.name))[0];
         
-        const { data: content } = await axios.get(file.download_url);
-        const article = content;
+        if (!latestDate) continue;
         
-        if (!postedUrls.includes(article.url)) {
-          allArticles.push({
-            ...article,
-            site: site.name,
-            // Priority based on content length (longer = more substantial)
-            priority: article.content.length > 1500 ? 3 : article.content.length > 800 ? 2 : 1
-          });
+        const { data: files } = await axios.get(latestDate.url);
+        for (const file of files) {
+          if (!file.name.endsWith(".json")) continue;
+          
+          try {
+            const { data: content } = await axios.get(file.download_url);
+            const article = content;
+            
+            // Check for duplicates
+            const dupeCheck = isAlreadyPosted(article, tracking);
+            if (dupeCheck.byUrl || dupeCheck.byHash) {
+              console.log(`⏭️ Skipping duplicate: ${article.title.substring(0, 50)}...`);
+              continue;
+            }
+            
+            allArticles.push({
+              ...article,
+              site: site.name,
+              contentHash: dupeCheck.contentHash,
+              domain: getDomain(article.url),
+              // Priority based on content length and recency
+              priority: article.content.length > 1500 ? 3 : article.content.length > 800 ? 2 : 1,
+              scraped_timestamp: new Date(article.scraped_at).getTime()
+            });
+          } catch (fileErr) {
+            console.warn(`⚠️ Error processing file ${file.name}:`, fileErr.message);
+          }
         }
+      } catch (siteErr) {
+        console.warn(`⚠️ Error processing site ${site.name}:`, siteErr.message);
       }
     }
 
-    // Sort by priority (highest first) and date
+    // Remove duplicate content (keep highest priority version)
+    const seenHashes = new Set();
+    const deduplicatedArticles = [];
+    
     allArticles.sort((a, b) => {
       if (a.priority !== b.priority) return b.priority - a.priority;
-      return new Date(b.scraped_at) - new Date(a.scraped_at);
+      return b.scraped_timestamp - a.scraped_timestamp;
     });
 
-    console.log(`📊 Found ${allArticles.length} new articles`);
+    for (const article of allArticles) {
+      if (!seenHashes.has(article.contentHash)) {
+        seenHashes.add(article.contentHash);
+        deduplicatedArticles.push(article);
+      } else {
+        console.log(`🔄 Duplicate content found: ${article.title.substring(0, 50)}...`);
+      }
+    }
 
-    if (allArticles.length === 0) {
+    console.log(`📊 Found ${deduplicatedArticles.length} unique new articles`);
+
+    if (deduplicatedArticles.length === 0) {
       console.log("⚠️ No new articles to post");
+      tracking.last_run = new Date().toISOString();
+      await saveTracking(tracking);
       return;
     }
 
-    // Take ONLY the first (most interesting) article
-    const article = allArticles[0];
+    // Process the first (best) article
+    const article = deduplicatedArticles[0];
 
     try {
       console.log(`\n📰 Processing: ${article.title}`);
       console.log(`📊 Priority Score: ${article.priority}`);
       console.log(`📍 Source: ${article.site}`);
+      console.log(`🔗 URL: ${article.url}`);
       
-      // First, assess if the article is interesting enough
+      // Assess if the article is interesting
       const assessPrompt = `
-You are a news editor. Rate if this article is INTERESTING and worth posting on Facebook.
+You are a news editor for a Nepal news Facebook page. Rate if this article is INTERESTING and worth posting.
 
 TITLE: ${article.title}
 CONTENT: ${article.content.substring(0, 1500)}
 
-Respond ONLY with:
-- INTERESTING: If it covers major news (politics, economy, health, national importance)
-- SKIP: If it's minor, gossip, sports, ads, or not newsworthy
+Respond ONLY with a single word:
+- INTERESTING: If it covers major news (politics, economy, health, national importance, major events)
+- SKIP: If it's minor, gossip, sports, ads, celebrity news, or not newsworthy
 
-Be strict - only INTERESTING news.`;
+Be strict - only post IMPORTANT news that people care about.`;
 
       const assessResult = await model.generateContent(assessPrompt);
-      const assessment = assessResult.response.text().trim();
+      const assessment = assessResult.response.text().trim().toUpperCase();
 
       console.log(`\n🔍 Assessment: ${assessment}`);
 
-      if (assessment === "SKIP") {
-        console.log("⏭️ Article not interesting enough. Skipping.");
-        // Still mark as posted to avoid re-processing
-        postedUrls.push(article.url);
-        await fs.writeFile("posted_urls.json", JSON.stringify(postedUrls, null, 2));
+      if (!assessment.includes("INTERESTING")) {
+        console.log("⏭️ Article not interesting enough. Skipping to next.");
+        tracking.posted_urls.push(article.url);
+        tracking.posted_hashes.push(article.contentHash);
+        await saveTracking(tracking);
         return;
       }
 
-      // Create detailed Facebook post
+      // Create detailed Facebook post with source link
       console.log(`\n✍️ Creating detailed post...`);
       
       const detailPrompt = `
-You are a professional Nepali news writer creating engaging Facebook posts.
+You are a professional Nepali news writer for a Facebook news page. Create an engaging, factual post.
 
 ARTICLE TITLE: ${article.title}
 ARTICLE CONTENT: ${article.content}
+ARTICLE URL: ${article.url}
+SOURCE: ${article.site}
 
-Create a DETAILED, ENGAGING Facebook post in Nepali with English (mixed naturally):
+Create a DETAILED, ENGAGING Facebook post in Nepali & English mix:
 
-STRUCTURE:
-1. Start with 🚨 and a bold, catchy headline in Nepali
-2. Write 4-6 detailed sentences explaining the full story
-3. Include key details, context, and implications
-4. Use natural mix of Nepali and English
-5. Add relevant emojis throughout
-6. End with source name and 2-3 relevant hashtags
+REQUIREMENTS:
+1. Start with 🚨 and bold headline in Nepali
+2. Write 5-7 clear sentences with FULL story details
+3. Include specific facts, numbers, names, context
+4. Naturally mix Nepali and English
+5. Use emojis to highlight key points
+6. Include the SOURCE LINK at the end (very important!)
+7. Add 3-4 relevant hashtags
+8. Make it 600-900 characters - SUBSTANTIAL and INFORMATIVE
 
-TONE: Professional but conversational, like a trusted news friend sharing updates
+FACTS TO VERIFY:
+- Who is involved? (names, roles)
+- What happened? (specific events)
+- When did it happen? (dates, timing)
+- Where? (locations)
+- Why is it important? (impact, implications)
+- What comes next? (consequences, follow-up)
 
-CONSTRAINTS:
-- Make it SUBSTANTIAL and INFORMATIVE (500-800 characters)
-- Sound natural and engaging
-- Include actual details from the article
-- Be factual and clear
+FORMAT EXAMPLE:
+🚨 **नेपालीमा शीर्षक**
 
-Format:
-🚨 **[नेपालीमा आकर्षक शीर्षक]**
+विस्तृत विवरण (5-7 वाक्य नेपाली/English मिश्रण)। सब विवरण समावेश गर्नुहोस्।
 
-[विस्तृत वर्णन - 4-6 वाक्य नेपाली र English मिलाएर। सबै महत्त्वपूर्ण बिवरण समावेश गर्नुहोस्।]
+📌 मुख्य बिन्दु:
+• बिन्दु १ - विशिष्ट विवरण
+• बिन्दु २ - विशिष्ट विवरण
+• बिन्दु ३ - विशिष्ट विवरण
 
-📌 Key Points:
-• [मुख्य बिन्दु १]
-• [मुख्य बिन्दु २]
-• [मुख्य बिन्दु ३]
+🔗 Read Full Story: ${article.url}
+📰 Source: ${article.site}
 
-Source: ${article.site}
-#NepalNews #[प्रासंगिक_विषय]
-`;
+#NepalNews #relevant_topic #News
+
+TONE: Professional, trustworthy, informative - like a news friend sharing important updates.
+BE FACTUAL - only include information from the article provided.`;
 
       const contentResult = await model.generateContent(detailPrompt);
       const facebookPost = contentResult.response.text().trim();
 
       console.log(`\n📝 Generated Post:\n`);
-      console.log(`${"=".repeat(60)}`);
+      console.log(`${"=".repeat(70)}`);
       console.log(facebookPost);
-      console.log(`${"=".repeat(60)}\n`);
+      console.log(`${"=".repeat(70)}\n`);
 
-      // Validate post length
-      if (facebookPost.length < 100) {
+      // Validate post
+      if (facebookPost.length < 150) {
         console.log("⚠️ Post too short, skipping");
+        tracking.posted_urls.push(article.url);
+        tracking.posted_hashes.push(article.contentHash);
+        await saveTracking(tracking);
         return;
+      }
+
+      if (!facebookPost.includes(article.url)) {
+        console.log("⚠️ Post missing source link, adding it...");
+        const postWithLink = facebookPost + `\n\n🔗 पूरो खबर पढ्न: ${article.url}`;
+        facebookPost = postWithLink;
       }
 
       // Post to Facebook
@@ -185,33 +279,45 @@ Source: ${article.site}
         access_token: process.env.FB_PAGE_TOKEN
       };
 
-      const response = await axios.post(fbUrl, payload);
-      const responseData = response.data;
+      try {
+        const response = await axios.post(fbUrl, payload);
+        const responseData = response.data;
 
-      if (responseData.id) {
-        console.log(`\n✅ SUCCESS! Post ID: ${responseData.id}`);
-        console.log(`🎉 Article posted successfully!`);
-        
-        // Mark as posted
-        postedUrls.push(article.url);
-        await fs.writeFile("posted_urls.json", JSON.stringify(postedUrls, null, 2));
-        
-        console.log(`\n💾 URL saved to posted_urls.json`);
-        console.log(`📊 Total posted: ${postedUrls.length}`);
-      } else {
-        console.warn(`⚠️ No post ID returned from Facebook API`);
-        console.warn(`Response:`, responseData);
+        if (responseData.id) {
+          console.log(`\n✅ SUCCESS! Post ID: ${responseData.id}`);
+          console.log(`🎉 Article posted successfully!`);
+          
+          // Mark as posted
+          tracking.posted_urls.push(article.url);
+          tracking.posted_hashes.push(article.contentHash);
+          tracking.posted_at.push(new Date().toISOString());
+          tracking.total_posted++;
+          await saveTracking(tracking);
+          
+          console.log(`\n💾 Tracking updated`);
+          console.log(`📊 Total posted: ${tracking.total_posted}`);
+        } else if (responseData.error) {
+          console.error(`❌ Facebook API Error:`, responseData.error);
+          throw new Error(responseData.error.message);
+        } else {
+          console.warn(`⚠️ Unexpected response from Facebook API`);
+          console.warn(`Response:`, responseData);
+        }
+      } catch (fbError) {
+        console.error(`\n❌ Facebook posting failed: ${fbError.message}`);
+        if (fbError.response?.data?.error) {
+          console.error(`API Error Details:`, fbError.response.data.error);
+        }
+        throw fbError;
       }
 
     } catch (error) {
       console.error(`\n❌ Error processing article: ${error.message}`);
-      if (error.response?.data) {
-        console.error(`API Error:`, error.response.data);
-      }
+      console.error(error.stack);
       throw error;
     }
 
-    console.log(`\n🎉 Bot completed! One article posted.`);
+    console.log(`\n🎉 Bot cycle completed!`);
 
   } catch (error) {
     console.error(`\n❌ System Error: ${error.message}`);
