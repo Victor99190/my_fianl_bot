@@ -530,20 +530,22 @@ Be strict: only EXACT_DUPLICATE if reporting the SAME event with SAME facts.`;
       return;
     }
 
-    // Process first article
-    const article = deduplicatedArticles[0];
+    // Process up to 2 articles
+    const articlesToPost = deduplicatedArticles.slice(0, 2);
+    let postedCount = 0;
 
-    console.log(`\n${"=".repeat(70)}`);
-    console.log(`📰 PROCESSING ARTICLE`);
-    console.log(`${"=".repeat(70)}`);
-    console.log(`Title: ${article.title}`);
-    console.log(`Source: ${article.site}`);
-    console.log(`URL: ${article.url}`);
-    console.log(`Type: ${article.articleType || "NEW_STORY"}`);
-    console.log(`Priority: ${'⭐'.repeat(article.priority)}`);
+    for (const article of articlesToPost) {
+      console.log(`\n${"=".repeat(70)}`);
+      console.log(`📰 PROCESSING ARTICLE`);
+      console.log(`${"=".repeat(70)}`);
+      console.log(`Title: ${article.title}`);
+      console.log(`Source: ${article.site}`);
+      console.log(`URL: ${article.url}`);
+      console.log(`Type: ${article.articleType || "NEW_STORY"}`);
+      console.log(`Priority: ${'⭐'.repeat(article.priority)}`);
 
-    // Assess interest
-    const assessPrompt = `
+      // Assess interest
+      const assessPrompt = `
 You are a news editor. Rate if this article is INTERESTING for Facebook.
 
 TITLE: ${article.title}
@@ -648,6 +650,7 @@ FORMAT:
       // ====== NEW: Add to both logs ======
       await addToPostLog(article, response.data.id, facebookPost, article.articleType || "NEW_STORY");
       await addToPostedHistory(postedHistory, article);
+      postedCount++;
       // ====== END NEW ======
     } else {
       console.error(`❌ Failed to post`);
@@ -659,13 +662,14 @@ FORMAT:
     console.log(`\n${"=".repeat(70)}`);
     console.log(`🎉 Bot completed successfully!`);
     console.log(`${"=".repeat(70)}\n`);
+    }
 
     // Commit and push changes
     try {
       execSync('git config --global user.name "GitHub Actions Bot"');
       execSync('git config --global user.email "bot@github.com"');
       execSync('git add posted_history.json');
-      execSync('git commit -m "Update posted history" || echo "No changes"');
+      execSync('git commit -m "Update posted history after posting ' + postedCount + ' articles" || echo "No changes"');
       execSync('git push');
       console.log('✅ Committed and pushed updated posted history');
     } catch (error) {
