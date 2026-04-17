@@ -1,21 +1,13 @@
 {
   "name": "nepal-news-bot",
   "version": "2.0.0",
-  "description": "Nepal news scraper and Facebook poster with robust deduplication",
-  "main": "bot-v2.js",
+  "main": "auto_post.js",
   "scripts": {
-    "start": "node bot-v2.js",
-    "scrape": "cd scraper_repo && python -m pip install -q -r requirements.txt && python scrape.py",
-    "test": "node bot-v2.js",
-    "db:stats": "node -e \"const Database = require('better-sqlite3'); const db = new Database('./dedup.db'); const result = db.prepare('SELECT COUNT(*) as total, COUNT(CASE WHEN posted_at IS NOT NULL THEN 1 END) as posted FROM articles').get(); console.log(JSON.stringify(result, null, 2)); db.close();\""
+    "start": "node auto_post.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "axios": "^1.6.0",
     "better-sqlite3": "^9.2.0"
-  },
-  "devDependencies": {},
-  "engines": {
-    "node": ">=18.0.0"
   }
 }
