@@ -160,10 +160,10 @@ async function runBot() {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const result = await model.generateContent(
-            `In 2-3 sentences, summarize this Nepali news for Facebook:\n\nTITLE: ${article.title}\nCONTENT: ${article.content.substring(
+            `Act as a professional news editor. Provide a comprehensive and detailed summary of the following Nepali news article in Nepali. Include all major points, key figures, dates, and the core outcome of the story. Do not limit the length; ensure every critical detail is covered.\n\nTITLE: ${article.title}\nCONTENT: ${article.content.substring(
               0,
-              1500
-            )}\n\nReply with ONLY the summary.`
+              4000
+            )}\n\nReply with ONLY the summarized Nepali text.`
           );
           summary = result.response.text().trim();
           if (summary && summary.length > 20) break;
@@ -179,11 +179,13 @@ async function runBot() {
       }
 
       // Post to Facebook
+      // Force UTF-8 header in Axios request
       const post = `🚨 **${article.title}**\n\n${summary}\n\n📰 Source: ${article.source}\n🔗 Read more: ${article.url}\n\n#NepalNews #Breaking`;
 
       const res = await axios.post(
         `https://graph.facebook.com/v20.0/${process.env.FB_PAGE_ID}/feed`,
-        { message: post, access_token: process.env.FB_PAGE_TOKEN }
+        { message: post, access_token: process.env.FB_PAGE_TOKEN },
+        { headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );
 
       if (res.data.id) {
