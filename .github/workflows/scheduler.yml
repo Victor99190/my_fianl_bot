@@ -22,11 +22,19 @@ jobs:
             git clone --depth 1 https://github.com/Victor99190/final-scrapeer.git scraper_repo
           fi
 
-      - uses: actions/download-artifact@v4
+      # ---------------------------------------------------------
+      # NEW: Replaced Artifacts with Cache to persist the database
+      # ---------------------------------------------------------
+      - name: Persist SQLite Database
+        uses: actions/cache@v4
         with:
-          name: dedup-db
-          path: .
-        continue-on-error: true
+          path: dedup.db
+          # Generates a unique key for saving at the end of THIS run
+          key: dedup-db-${{ github.run_id }}
+          # Tells GitHub to load the most recent database from previous runs
+          restore-keys: |
+            dedup-db-
+      # ---------------------------------------------------------
 
       - uses: actions/setup-node@v4
         with:
@@ -40,10 +48,3 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: dedup-db
-          path: dedup.db
-          overwrite: true
