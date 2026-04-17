@@ -1,58 +1,64 @@
-name: News Automation Bot
+name: Nepal News Bot - SQLite Dedup
 
 on:
   schedule:
-    - cron: '*/25 * * * *'
-      timezone: "Asia/Kathmandu"
-  repository_dispatch:
-    types: [trigger-news-bot]
-  workflow_dispatch: {}
-
-permissions:
-  contents: write
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub UI
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    concurrency:
-      group: news-bot-sync
-      cancel-in-progress: true
+    timeout-minutes: 15
+
     steps:
-      - name: Checkout repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Clone scraper repository
-        run: git clone https://github.com/Victor99190/final-scrapeer.git scraper_repo
+      - name: 🔄 Checkout scraper repo (latest data)
+        run: |
+          if [ -d scraper_repo ]; then
+            cd scraper_repo && git pull origin main || true
+          else
+            git clone --depth 1 https://github.com/Victor99190/final-scrapeer.git scraper_repo
+          fi
 
-      - name: Setup Node.js
+      - name: 📥 Restore SQLite database from previous runs
+        uses: actions/download-artifact@v4
+        with:
+          name: dedup-database
+          path: .
+        continue-on-error: true
+
+      - name: 🔧 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '18'
+          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install --production
+      - name: 📦 Install dependencies
+        run: npm ci
 
-      - name: Validate secrets
+      - name: 🚀 Run news bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+        run: npm start
+
+      - name: 💾 Save SQLite database for next run
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dedup-database
+          path: dedup.db
+          retention-days: 90
+          overwrite: true
+
+      - name: 📧 Notify on failure
+        if: failure()
         run: |
-          echo "Checking required secrets..."
-          if [ -z "$GEMINI_API_KEY" ]; then echo "Missing GEMINI_API_KEY"; exit 1; fi
-          if [ -z "$FB_PAGE_TOKEN" ]; then echo "Missing FB_PAGE_TOKEN"; exit 1; fi
-          if [ -z "$FB_PAGE_ID" ]; then echo "Missing FB_PAGE_ID"; exit 1; fi
-
-      - name: Run validation script
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-        run: node validate.js
-
-      - name: Run news bot
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-        run: node auto_post.js
+          echo "Bot run failed. Check logs at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
