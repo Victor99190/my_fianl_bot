@@ -148,7 +148,7 @@ async function runBot() {
   newArticles.sort((a, b) => (b.content?.length || 0) - (a.content?.length || 0));
 
   // Post up to 2
-  const toPost = newArticles.slice(0, 2);
+  const toPost = newArticles.slice(0, 1);
   let posted = 0;
 
   for (const article of toPost) {
@@ -162,7 +162,7 @@ async function runBot() {
           const result = await model.generateContent(
             `Act as a professional news editor. Provide a comprehensive and detailed summary of the following Nepali news article in Nepali. Include all major points, key figures, dates, and the core outcome of the story. Do not limit the length; ensure every critical detail is covered.\n\nTITLE: ${article.title}\nCONTENT: ${article.content.substring(
               0,
-              4000
+              2000
             )}\n\nReply with ONLY the summarized Nepali text.`
           );
           summary = result.response.text().trim();
