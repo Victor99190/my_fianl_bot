@@ -2,7 +2,7 @@ name: Nepal News Bot
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Recommended: Change to 30 mins to avoid GitHub rate limits
+    - cron: '*/60 * * * *' # Recommended: Change to 30 mins to avoid GitHub rate limits
   workflow_dispatch:
   # This block allows your website to trigger the bot
   repository_dispatch:
