@@ -160,22 +160,33 @@ async function runBot() {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const result = await model.generateContent(
-            `You are an expert news summarization assistant. Your task is to analyze sumarize news
-            articles in two-part summary. You must avoid fluff 
-            and get straight to the point. Follow this exact format and language structure: 
-            Part 1: Core Facts (Romanized Nepali) Format: Must start with "Summary:  use  Romanized Nepali
-            (Nepali spoken language written in the English alphabet  sometimes using common English  words).
-            Content: The most critical facts only (What happened, where, and the primary outcome/numbers). Length:
-            Strictly 2 to 3 sentences maximum. Part 2: Additional Detail (Nepali / Devanagari Script) Format:
-            Leave one blank line after Part 1, then begin the second paragraph. Language: Nepali (written in Devanagari script).
-            Content: Expand slightly on the story. Include the "how" or "why", actions being taken by authorities, background context,
-            or minor details not included in the first paragraph. 
-            Length: Strictly 3 to 4 sentences maximum. Do not simply translate Part 1 and dont write summary on top just write the content;
-            provide new but concise information..\n\nTITLE: ${article.title}\nCONTENT: ${article.content.substring(
-              0,
-              360
-            )}\n\nReply with ONLY the summarized Nepali text.`
-          );
+  `Summarize this Nepali news article in exactly two parts (maximum 350 words total):
+
+**Part 1 (Romanized Nepali):**
+- Write 2-5 sentences in Romanized Nepali (Nepali spoken language using English alphabet, mixing common English words naturally)
+- Cover the core facts: what happened, where, key numbers/outcomes
+- Start directly with the content—no labels like "Summary:" or extra spacing
+- Be factual and precise
+
+**Part 2 (Devanagari Nepali):**
+- Leave one blank line after Part 1
+- Write 3-5 sentences in Nepali (Devanagari script)
+- Expand on context: why it matters, background, actions being taken, implications
+- Provide NEW information, not just translation of Part 1
+- Include relevant details that help readers understand the broader situation
+
+**Guidelines:**
+- Avoid fluff—get straight to essential facts
+- Use clear, direct language
+- Don't write meta-labels (no "Summary:", "विवरण:", etc.)
+- Don't add extra spacing or formatting markers
+- Don't include the article title in your response
+
+**Content to summarize:**
+${article.content.substring(0, 360)}
+
+Reply with ONLY the two-part summary as specified above.`
+);
           summary = result.response.text().trim();
           if (summary && summary.length > 20) break;
         } catch (e) {
