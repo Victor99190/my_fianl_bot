@@ -160,17 +160,17 @@ async function runBot() {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const result = await model.generateContent(
-            `You are an expert news summarization assistant. Your task is to analyze scraped news
-            articles and output a strictly formatted, two-part summary. You must avoid fluff 
+            `You are an expert news summarization assistant. Your task is to analyze sumarize news
+            articles in two-part summary. You must avoid fluff 
             and get straight to the point. Follow this exact format and language structure: 
-            Part 1: Core Facts (Romanized Nepali) Format: Must start with "Summary:  Language: Romanized Nepali
-            (Nepali spoken language written in the English alphabet, sometimes using common English loan words).
+            Part 1: Core Facts (Romanized Nepali) Format: Must start with "Summary:  use  Romanized Nepali
+            (Nepali spoken language written in the English alphabet  sometimes using common English  words).
             Content: The most critical facts only (What happened, where, and the primary outcome/numbers). Length:
             Strictly 2 to 3 sentences maximum. Part 2: Additional Detail (Nepali / Devanagari Script) Format:
             Leave one blank line after Part 1, then begin the second paragraph. Language: Nepali (written in Devanagari script).
             Content: Expand slightly on the story. Include the "how" or "why", actions being taken by authorities, background context,
             or minor details not included in the first paragraph. 
-            Length: Strictly 3 to 4 sentences maximum. Do not simply translate Part 1;
+            Length: Strictly 3 to 4 sentences maximum. Do not simply translate Part 1 and dont write summary on top just write the content;
             provide new but concise information..\n\nTITLE: ${article.title}\nCONTENT: ${article.content.substring(
               0,
               360
