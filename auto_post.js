@@ -167,15 +167,27 @@ async function runBot() {
 - Cover the core facts: what happened, where, key numbers/outcomes
 - Start directly with the content—no labels like "Summary:" or extra spacing
 - Be factual and precise
+- Write naturally as spoken by everyday Nepali people in casual conversation
+- For technical/specialized English terms, use simple Nepali words or commonly understood alternatives
+- Avoid awkward direct translations of jargon—explain concepts in plain language
+- Think: "How would I explain this news to a friend over tea?"
+- Keep in mind this news is targeted to nepali youth.
+- Dont use disrespect word always write news respectfully
 
 **Part 2 (Devanagari Nepali):**
 - Leave one blank line after Part 1
 - Write 3-5 sentences in Nepali (Devanagari script)
+- use simple plain nepali 
+- Use formal, respectful language appropriate for traditional Nepali journalism
+- Use honorific forms: "गर्नुभयो/गर्नुभएको" instead of "गरे/गरेका", "भन्नुभयो" instead of "भने"
+- Use "जानुभयो/आउनुभयो" (respectful) instead of "गए/आए" (informal timi form) 
+- Maintain professional tone similar to established Nepali newspapers
 - Expand on context: why it matters, background, actions being taken, implications
 - Provide NEW information, not just translation of Part 1
 - Include relevant details that help readers understand the broader situation
 
 **Guidelines:**
+-Dont sound bias even  if biasness found in scrapped news. 
 - Avoid fluff—get straight to essential facts
 - Use clear, direct language
 - Don't write meta-labels (no "Summary:", "विवरण:", etc.)
