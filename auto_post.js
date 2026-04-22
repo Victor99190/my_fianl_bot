@@ -216,7 +216,7 @@ Reply with ONLY the two-part summary as specified above first part in in Romaniz
 
       // Post to Facebook
       // Force UTF-8 header in Axios request
-      const post = `**${summary}\n\n📰 Source: ${article.source}\n\n#NepalNews #Breaking \n Note:This is AI generated news\nAI can make mistake `;
+      const post = `${summary}\n\n📰 Source: ${article.source}\n\n#NepalNews #Breaking \nNote:This is AI generated news\nAI can make mistake `;
 
       const res = await axios.post(
         `https://graph.facebook.com/v20.0/${process.env.FB_PAGE_ID}/feed`,
