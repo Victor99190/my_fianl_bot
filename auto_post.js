@@ -163,7 +163,7 @@ async function runBot() {
   `Summarize this Nepali news article in exactly two parts (maximum 350 words total):
 
 **Part 1 (Romanized Nepali):**
-- Write 2-5 sentences in Romanized Nepali (Nepali spoken language using English alphabet, mixing common English words naturally)
+- Write 3-5 sentences in Romanized Nepali (Nepali spoken language using English alphabet, mixing common English words naturally)
 - Cover the core facts: what happened, where, key numbers/outcomes
 - Start directly with the content—no labels like "Summary:" or extra spacing
 - Be factual and precise
@@ -175,8 +175,9 @@ async function runBot() {
 - Dont use disrespect word always write news respectfully
 
 **Part 2 (Devanagari Nepali):**
+-Dont try to just copy orginal post write creatively as orginal post 
 - Leave one blank line after Part 1
-- Write 3-5 sentences in Nepali (Devanagari script)
+- Write 5-10 sentences in Nepali (Devanagari script)
 - use simple plain nepali 
 - Use formal, respectful language appropriate for traditional Nepali journalism
 - Use honorific forms: "गर्नुभयो/गर्नुभएको" instead of "गरे/गरेका", "भन्नुभयो" instead of "भने"
@@ -187,6 +188,7 @@ async function runBot() {
 - Include relevant details that help readers understand the broader situation
 
 **Guidelines:**
+-Write in bullet points
 -Dont sound bias even  if biasness found in scrapped news. 
 - Avoid fluff—get straight to essential facts
 - Use clear, direct language
@@ -195,7 +197,7 @@ async function runBot() {
 - Don't include the article title in your response
 
 **Content to summarize:**
-${article.content.substring(0, 360)}
+${article.content.substring(0, 500)}
 
 Reply with ONLY the two-part summary as specified above.`
 );
@@ -214,7 +216,7 @@ Reply with ONLY the two-part summary as specified above.`
 
       // Post to Facebook
       // Force UTF-8 header in Axios request
-      const post = `🚨 **${article.title}**\n\n${summary}\n\n📰 Source: ${article.source}\n🔗 Read more: ${article.url}\n\n#NepalNews #Breaking`;
+      const post = `**${summary}\n\n📰 Source: ${article.source}\n\n#NepalNews #Breaking \n Note:This is AI generated news\nAI can make mistake `;
 
       const res = await axios.post(
         `https://graph.facebook.com/v20.0/${process.env.FB_PAGE_ID}/feed`,
