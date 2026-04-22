@@ -172,7 +172,7 @@ async function runBot() {
 - Avoid awkward direct translations of jargon—explain concepts in plain language
 - Think: "How would I explain this news to a friend over tea?"
 - Keep in mind this news is targeted to nepali youth.
-- Dont use disrespect word always write news respectfully
+- Dont use disrespect word always write news respectfully and write first part in romanize nepali
 
 **Part 2 (Devanagari Nepali):**
 -Dont try to just copy orginal post write creatively as orginal post 
@@ -199,7 +199,7 @@ async function runBot() {
 **Content to summarize:**
 ${article.content.substring(0, 500)}
 
-Reply with ONLY the two-part summary as specified above.`
+Reply with ONLY the two-part summary as specified above first part in in Romanized Nepali (Nepali spoken language using English alphabet, mixing common English words naturally) .`
 );
           summary = result.response.text().trim();
           if (summary && summary.length > 20) break;
