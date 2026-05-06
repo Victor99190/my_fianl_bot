@@ -1,0 +1,66 @@
+name: Nepal News Bot
+
+on:
+  schedule:
+    - cron: '*/60 * * * *' # Every 60 minutes (you can change to */30 for 30 mins, */15 for 15 mins, etc)
+  workflow_dispatch:
+  repository_dispatch:
+    types: [trigger-news-bot]
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Clone Scraper
+        run: |
+          if [ -d scraper_repo ]; then
+            cd scraper_repo && git pull || true
+          else
+            git clone --depth 1 https://github.com/Victor99190/final-scrapeer.git scraper_repo
+          fi
+
+      # CRITICAL: Persist dedup.db across runs
+      - name: Restore dedup.db
+        uses: actions/cache@v4
+        with:
+          path: dedup.db
+          key: dedup-db-master
+          restore-keys: |
+            dedup-db-
+
+      # CRITICAL: Persist rate_limit.db across runs (NEW)
+      - name: Restore rate_limit.db
+        uses: actions/cache@v4
+        with:
+          path: rate_limit.db
+          key: rate-limit-db-master
+          restore-keys: |
+            rate-limit-db-
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - run: npm install
+
+      - name: Run Nepal News Bot
+        run: npm start
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+
+      # Optional: Upload logs for debugging
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-logs-${{ github.run_id }}
+          path: bot.log
+          retention-days: 7
