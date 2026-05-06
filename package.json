@@ -1,9 +1,9 @@
 {
   "name": "nepal-news-bot",
   "version": "2.0.0",
-  "main": "auto_post.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node auto_post.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
